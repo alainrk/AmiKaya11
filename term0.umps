@@ -1,0 +1,52 @@
+print terminal thread has started
+p1 setup ok: now starting the tests
+p2 started
+p2 received right message from p1
+p2 is OK
+p2 provide a good synch
+p3 started
+p3: WAITFORCLOCK looks OK: now a longer test
+p3: CPU time correctly maintained
+p4: first incarnation starts
+p5 starts
+p4: second incarnation starts
+p6 starts
+p7 starts
+p5 trap mgr started
+p4 is OK
+p5 trap mgr: got up-level SYSCALL passup
+p5 returns after up-level syscall
+p5 trap mgr: TLB trap; restarting as p5a, User mode
+p5 trap mgr: Kernel mode required for MsgRecv(): retrying
+p5a handshake with p1 OK
+p9 starts
+p8root starts
+p9 trap mgr started
+child1 starts
+child2 starts
+SYSCALL in p9: terminate it
+leaf process starts
+leaf process starts
+leaf process starts
+leaf process starts
+p8root starts
+child1 starts
+child2 starts
+leaf process starts
+leaf process starts
+leaf process starts
+leaf process starts
+p8root starts
+child1 starts
+child2 starts
+leaf prleaf process starts
+leaf process starts
+leaf process starts
+p8root starts
+child1 starts
+child2 sleaf process starts
+leaf process starts
+leaf process starts
+leaf process starts
+p1 finishes OK
+System halted 
