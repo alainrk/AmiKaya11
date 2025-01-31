@@ -1,12 +1,8 @@
-######################
 # README
-######################
 
- # Contenuto di "lso11az20.tar.gz":
-		
 		+ lso11az20
-			- Files configurazione umps2
-			- Makefile (totale phase 2)
+			- Config files umps2
+			- Makefile
 		+ Include -> Header files
 			- base.h
 			- const11.h
@@ -15,22 +11,22 @@
 			- types11.h
 			- uMPStypes.h
 		+ phase1
-			+ e -> Interfacce phase1
+			+ e -> Interfaces phase1
 				- msg.e
 				- tcb.e
-			+ src -> Sorgenti phase1
+			+ src -> Sources phase1
 				- msg.c
 				- tcb.c
-				- Makefile (moduli phase1)
+				- Makefile
 		+ phase2
-			+ e -> Interfacce phase2
+			+ e -> Interfaces phase2
 				- boot.e
 				- exceptions.e
 				- interrupts.e
 				- manager.e
 				- scheduler.e
 				- ssi.e
-			+ src -> Sorgenti phase2
+			+ src -> Sources phase2
 				- boot.c
 				- exceptions.c
 				- interrupts.c
@@ -38,13 +34,11 @@
 				- scheduler.c
 				- ssi.c
 				- p2test.0.2.c
-				- Makefile (moduli phase2)
+				- Makefile
 
 
- # Compilazione :
-
-  -ATTENZIONE:
-		I path per il linking sono impostati come segue:
+ # Compilation:
+		Linking paths:
 
 			INCLUDE = ./include
 			PHASE1PATHE = ./phase1/e
@@ -55,14 +49,6 @@
 			ELFPATH = /usr/local/include/umps2/umps
 			ELF32 = /usr/local/share/umps2
 
-	1 - Decomprimere il file "lso11az20.tar.gz"
-
-	2 - Spostarsi nella cartella in cui si è decompresso il tar.gz e dare il comando:
-
+	1 - Unzip "lso11az20.tar.gz"
+	2 - Compile
 		# make all
-
-	3 - Verranno creati i file opportuni all'esecuzione del kernel su umps2
-
-	4 - Per cancellare i file creati dal make dare il comando:
-
-		# make clean
