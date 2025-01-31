@@ -1,6 +1,4 @@
-# Makefile per AmiKaya11
-
-# Dichiarazione delle cartelle base
+# Declaration of base directories
 INCLUDE = ./include
 PHASE1PATHE = ./phase1/e
 PHASE2PATHE = ./phase2/e
@@ -10,19 +8,19 @@ LIBPATH = /usr/local/lib/umps2
 ELFPATH = /usr/local/include/umps2/umps
 ELF32 = /usr/local/share/umps2
 
-# Dichiarazione dei comandi base
+# Declaration of base commands
 CFLAGS = -Wall -I $(INCLUDE) -I $(PHASE1PATHE) -I $(PHASE2PATHE) -I $(ELFPATH) -I $(ELF32) -c
 LDFLAGS =  -T
 CC = mipsel-linux-gcc
 LD = mipsel-linux-ld
 
-# Target principale
+# Main target
 all: kernel.core.umps
 
 kernel.core.umps: kernel
 	umps2-elf2umps -k kernel
 
-# Linking del kernel
+# Kernel linking
 kernel: phase1dir phase2dir $(LIBPATH)/crtso.o $(LIBPATH)/libumps.o
 	$(LD) $(LDFLAGS) 	$(ELF32)/elf32ltsmip.h.umpscore.x \
 				$(LIBPATH)/crtso.o \
@@ -38,17 +36,17 @@ kernel: phase1dir phase2dir $(LIBPATH)/crtso.o $(LIBPATH)/libumps.o
 				$(PHASE2PATHSRC)/p2test.0.2.o \
 				-o kernel
 
-# Test phase1, mettere oggetto p1test nei file per il linking del kernel
+# Phase1 test, put p1test object in the kernel linking files
 
-# Sorgenti di phase1
+# Phase1 sources
 phase1dir:
 	cd $(PHASE1PATHSRC) && make all
 
-# Sorgenti di phase2
+# Phase2 sources
 phase2dir:
 	cd $(PHASE2PATHSRC) && make all
 
-# Pulizia dei file creati
+# Clean created files
 clean:
 	rm -f *.o kernel
 	rm -f kernel.*.umps
