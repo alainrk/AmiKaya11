@@ -18,8 +18,8 @@
 
 /*************************** INTERRUPTS.C *******************************
 
-	Questo modulo implementa la routine di gestione degli interrupt, e la
-	comunicazione a questo scopo con l'SSI.
+	This module implements the interrupt handling routine, and the
+	communication for this purpose with the SSI.
 
 ************************************************************************/
 
@@ -34,28 +34,28 @@
 #include <ssi.e>
 
 
-/* Macro per leggibilità: riferimento a Old Area come stato del processore */
+/* Macro for readability: reference to Old Area as processor state */
 #define	int_oldarea	((state_t *)INT_OLDAREA)
 
-/* Magic numbers per Interrupt a SSI */
+/* Magic numbers for Interrupt to SSI */
 #define INTERRUPT_MSG			255
 #define PSEUDOCLOCK_MSG		254
 #define NOREPLY						0
 
 
-/* Array di strutture globale per messaggi interrupt a SSI */
+/* Global structure array for interrupt messages to SSI */
 struct SSI_request_msg interrupt_msg_array[48];
-/* Usato per scorrere interrupt_msg_array[] in modo circolare */
+/* Used to scroll interrupt_msg_array[] in circular mode */
 HIDDEN int i=0;
 
 
 /**********************************************************************
 														 WHICH_DEVICE
 
-	Individua l'indice del device prendendo come parametro la bitmap
-	relativa alla linea dell'interrupt presa in considerazione.
-	Soddisfa la priorità scandendo sequenzialmente dall'indice minore
-	a quello maggiore.
+	Identifies the device index taking as parameter the bitmap
+	relative to the interrupt line being considered.
+	Satisfies priority by scanning sequentially from the lower index
+	to the higher one.
 
 **********************************************************************/
 HIDDEN int which_device (int bitmap) {
@@ -73,14 +73,14 @@ HIDDEN int which_device (int bitmap) {
 /**********************************************************************
 														 INT_HANDLER
 
-	Caricato all'arrivo di un interrupt, scandisce sequenzialmente, quindi
-	garantendo priorità, le	linee, da quelle con indice minore (più veloci)
-	a quelle con indice maggiore (più lente).
-	Ciò viene fatto in base ai bit IP del registro CAUSE, cercando poi 
-	quale/i device fra gli 8 possibili ha generato l'interrupt.
-	A questo punto viene gestito l'interrupt, mandando un messaggio a SSI
-	e ACKando il device register, principalmente, più altre azioni a seconda 
-	dello	specifico device.
+	Loaded upon arrival of an interrupt, scans sequentially, thus
+	guaranteeing priority, the lines, from those with lower index (faster)
+	to those with higher index (slower).
+	This is done based on the IP bits of the CAUSE register, then searching
+	which device(s) among the 8 possible ones generated the interrupt.
+	At this point the interrupt is handled, by sending a message to SSI
+	and ACKing the device register, mainly, plus other actions depending
+	on the specific device.
 
 **********************************************************************/
 void int_handler(){
@@ -97,49 +97,49 @@ void int_handler(){
 	int dev_number;
 
 	/*
-		Se c'era un processo sulla CPU salvo il precedente stato del processore nel campo 
-		t_state del tcb attivo in quel momento.
-		Lo stato è salvato nella old area dell'attuale eccezione.
+		If there was a process on the CPU, save the previous processor state in the
+		t_state field of the tcb active at that moment.
+		The state is saved in the old area of the current exception.
 	*/
-	if (current_thread != NULL) {		
+	if (current_thread != NULL) {
 
-		/* Aggiornamento tempo thread */
+		/* Thread time update */
 		current_thread->cpu_slice += (GET_TODLOW - current_thread_tod);
 		current_thread->cpu_time += (GET_TODLOW - current_thread_tod);
 
-		/* Salvataggio stato */
+		/* State save */
 		save_state(int_oldarea, &(current_thread->t_state));
 	}
 
-	/* Prelevo registro cause */
+	/* Retrieve cause register */
 	int_cause = int_oldarea->cause;
-	
-	/* Non presenti interrupt da linee 0 e 1 (software) in AmiKaya11 */
 
-	/* Linea 2 Interval Timer Interrupt + Gestione PSEUDO CLOCK ****************************/
+	/* No interrupts from lines 0 and 1 (software) in AmiKaya11 */
+
+	/* Line 2 Interval Timer Interrupt + PSEUDO CLOCK Management ****************************/
 	if (CAUSE_IP_GET(int_cause, INT_TIMER)) {
 
-		/* Aggiornamento pseudo clock */
+		/* Pseudo clock update */
 		pseudo_tick = pseudo_tick + (GET_TODLOW - start_pseudo_tick);
 		start_pseudo_tick = GET_TODLOW;
 
-		/* Interrupt per Pseudo-clock Tick */
+		/* Interrupt for Pseudo-clock Tick */
 		if (pseudo_tick >= SCHED_PSEUDO_CLOCK) {
 
-			/* Messaggio all'SSI che dovrà gestire lo sbloccaggio dei thread */			
+			/* Message to SSI that will handle thread unblocking */
 			interrupt_msg_array[i].service = PSEUDOCLOCK_MSG;
 			interrupt_msg_array[i].arg = 0;
 			interrupt_msg_array[i].reply = NOREPLY;
 
 			if ( send((tcb_t *)BUS_INTERVALTIMER, SSI_tcb, (U32)&interrupt_msg_array[i]) == MSGNOGOOD ) PANIC();
 
-			/* Faccio ripartire il clock del device virtuale */				
+			/* Restart the virtual device clock */
 			pseudo_tick = 0;
 			start_pseudo_tick = GET_TODLOW;
-			
+
 		}
 
-		/* Gestione per Slice processo corrente scaduto */
+		/* Management for expired current process Slice */
 		if ((current_thread != NULL) && (current_thread->cpu_slice >= SCHED_TIME_SLICE)) {
 
 			insertThread(&ready_queue, current_thread);
@@ -149,33 +149,33 @@ void int_handler(){
 
 		/* Default */
 		else SET_IT(SCHED_PSEUDO_CLOCK - pseudo_tick);
-		
+
 	} /* Interval Timer ********************************************************************/
 
 
 
-	/* Linea 3 Disk interrupt **************************************************************/
+	/* Line 3 Disk interrupt **************************************************************/
 	else if (CAUSE_IP_GET(int_cause, INT_DISK)) {
 		
-		/* Cerco la bitmap della linea attuale */
+		/* Search for the current line's bitmap */
 		int_bitmap = (int *)(PENDING_BITMAP_START + (WORD_SIZE * (INT_DISK - INT_LOWEST)));
-		
-		/* Cerco il device a più alta priorità su questa linea con interrupt pendente */
+
+		/* Search for the highest priority device on this line with pending interrupt */
 		dev_number = which_device(*int_bitmap);
-		
-		/* Salvo indirizzo del Device Register */
+
+		/* Save Device Register address */
 		device_baseaddr = (memaddr)(DEV_REGS_START + ((INT_DISK - INT_LOWEST) * 0x80) + (dev_number * 0x10));
-		
-		/* Salvo valore del campo Status del Device Register */
+
+		/* Save value of Device Register Status field */
 		status = (int *)device_baseaddr;
 
-		/* Puntatore a campo command del Device Register */
+		/* Pointer to Device Register command field */
 		command = (int *)(device_baseaddr + 0x4);
 
-		/* ACK al device */
+		/* ACK to device */
 		*command = DEV_C_ACK;
-	
-		/* Invio messaggio a SSI, come sender il device register, come payload il valore di status */
+
+		/* Send message to SSI, as sender the device register, as payload the status value */
 		interrupt_msg_array[i].service = INTERRUPT_MSG;
 		interrupt_msg_array[i].arg = *status;
 		interrupt_msg_array[i].reply = NOREPLY;
@@ -187,157 +187,157 @@ void int_handler(){
 
 
 
-	/* Linea 4 Tape interrupt **************************************************************/
+	/* Line 4 Tape interrupt **************************************************************/
 	else if (CAUSE_IP_GET(int_cause, INT_TAPE)) {
 
 
-		/* Cerco la bitmap della linea attuale */
+		/* Search for the current line's bitmap */
 		int_bitmap = (int *)(PENDING_BITMAP_START + (WORD_SIZE * (INT_TAPE - INT_LOWEST)));
-		
-		/* Cerco il device a più alta priorità su questa linea con interrupt pendente */
+
+		/* Search for the highest priority device on this line with pending interrupt */
 		dev_number = which_device(*int_bitmap);
-		
-		/* Salvo indirizzo del Device Register */
+
+		/* Save Device Register address */
 		device_baseaddr = (memaddr)(DEV_REGS_START + ((INT_TAPE - INT_LOWEST) * 0x80) + (dev_number * 0x10));
-		
-		/* Salvo valore del campo Status del Device Register */
+
+		/* Save value of Device Register Status field */
 		status = (int *)device_baseaddr;
 
-		/* Puntatore a campo command del Device Register */
+		/* Pointer to Device Register command field */
 		command = (int *)(device_baseaddr + 0x4);
 
-		/* ACK al device */
+		/* ACK to device */
 		*command = DEV_C_ACK;
-	
-		/* Invio messaggio a SSI, come sender il device register, come payload il valore di status */
+
+		/* Send message to SSI, as sender the device register, as payload the status value */
 		interrupt_msg_array[i].service = INTERRUPT_MSG;
 		interrupt_msg_array[i].arg = *status;
 		interrupt_msg_array[i].reply = NOREPLY;
 
 		if ( send((tcb_t *)device_baseaddr, SSI_tcb, (U32)&interrupt_msg_array[i]) == MSGNOGOOD ) PANIC();
-		
+
 	} /* Tape ******************************************************************************/
 
 
 
-	/* Linea 5 Unused line interrupt *******************************************************/
+	/* Line 5 Unused line interrupt *******************************************************/
 	else if (CAUSE_IP_GET(int_cause, INT_UNUSED)) {
 
-		/* Cerco la bitmap della linea attuale */
+		/* Search for the current line's bitmap */
 		int_bitmap = (int *)(PENDING_BITMAP_START + (WORD_SIZE * (INT_UNUSED - INT_LOWEST)));
-		
-		/* Cerco il device a più alta priorità su questa linea con interrupt pendente */
+
+		/* Search for the highest priority device on this line with pending interrupt */
 		dev_number = which_device(*int_bitmap);
-		
-		/* Salvo indirizzo del Device Register */
+
+		/* Save Device Register address */
 		device_baseaddr = (memaddr)(DEV_REGS_START + ((INT_UNUSED - INT_LOWEST) * 0x80) + (dev_number * 0x10));
-		
-		/* Salvo valore del campo Status del Device Register */
+
+		/* Save value of Device Register Status field */
 		status = (int *)device_baseaddr;
 
-		/* Puntatore a campo command del Device Register */
+		/* Pointer to Device Register command field */
 		command = (int *)(device_baseaddr + 0x4);
 
-		/* ACK al device */
+		/* ACK to device */
 		*command = DEV_C_ACK;
-	
-		/* Invio messaggio a SSI, come sender il device register, come payload il valore di status */
+
+		/* Send message to SSI, as sender the device register, as payload the status value */
 		interrupt_msg_array[i].service = INTERRUPT_MSG;
 		interrupt_msg_array[i].arg = *status;
 		interrupt_msg_array[i].reply = NOREPLY;
 
 		if ( send((tcb_t *)device_baseaddr, SSI_tcb, (U32)&interrupt_msg_array[i]) == MSGNOGOOD ) PANIC();
-		
+
 	} /* Unused ****************************************************************************/
 
 
 
-	/* Linea 6 Printer interrupt ***********************************************************/
+	/* Line 6 Printer interrupt ***********************************************************/
 	else if (CAUSE_IP_GET(int_cause, INT_PRINTER)) {
 
-		/* Cerco la bitmap della linea attuale */
+		/* Search for the current line's bitmap */
 		int_bitmap = (int *)(PENDING_BITMAP_START + (WORD_SIZE * (INT_PRINTER - INT_LOWEST)));
-		
-		/* Cerco il device a più alta priorità su questa linea con interrupt pendente */
+
+		/* Search for the highest priority device on this line with pending interrupt */
 		dev_number = which_device(*int_bitmap);
-		
-		/* Salvo indirizzo del Device Register */
+
+		/* Save Device Register address */
 		device_baseaddr = (memaddr)(DEV_REGS_START + ((INT_PRINTER - INT_LOWEST) * 0x80) + (dev_number * 0x10));
-		
-		/* Salvo valore del campo Status del Device Register */
+
+		/* Save value of Device Register Status field */
 		status = (int *)device_baseaddr;
 
-		/* Puntatore a campo command del Device Register */
+		/* Pointer to Device Register command field */
 		command = (int *)(device_baseaddr + 0x4);
 
-		/* ACK al device */
+		/* ACK to device */
 		*command = DEV_C_ACK;
-	
-		/* Invio messaggio a SSI, come sender il device register, come payload il valore di status */
+
+		/* Send message to SSI, as sender the device register, as payload the status value */
 		interrupt_msg_array[i].service = INTERRUPT_MSG;
 		interrupt_msg_array[i].arg = *status;
 		interrupt_msg_array[i].reply = NOREPLY;
 
 		if ( send((tcb_t *)device_baseaddr, SSI_tcb, (U32)&interrupt_msg_array[i]) == MSGNOGOOD ) PANIC();
-		
+
 	} /* Printer ***************************************************************************/
 
 
 
-	/* Linea 7 Terminal interrupt **********************************************************/
+	/* Line 7 Terminal interrupt **********************************************************/
 	else if (CAUSE_IP_GET(int_cause, INT_TERMINAL)) {
 
-		/* Cerco la bitmap della linea attuale */
+		/* Search for the current line's bitmap */
 		int_bitmap = (int *)(PENDING_BITMAP_START + (WORD_SIZE * (INT_TERMINAL - INT_LOWEST)));
-		
-		/* Cerco il device a più alta priorità su questa linea con interrupt pendente */
+
+		/* Search for the highest priority device on this line with pending interrupt */
 		dev_number = which_device(*int_bitmap);
-		
-		/* Salvo indirizzo del Device Register */
+
+		/* Save Device Register address */
 		device_baseaddr = (memaddr)(DEV_REGS_START + ((INT_TERMINAL - INT_LOWEST) * 0x80) + (dev_number * 0x10));
 
-		/* Salvo lo stato e il puntatore al campo command del Device Register in trasmissione */
+		/* Save the state and pointer to the command field of the Device Register in transmission */
 		status_trans = (int *)(device_baseaddr + 0x8);
 		command_trans = (int *)(device_baseaddr + 0xC);
 
-		/* Salvo lo stato e il puntatore al campo command del Device Register in ricezione */
+		/* Save the state and pointer to the command field of the Device Register in reception */
 		status_rec = (int *)device_baseaddr;
 		command_rec = (int *)(device_baseaddr + 0x4);
 
-		/* Analizzo lo stato per estrarre la causa dell'interrupt e agisco di conseguenza*/
+		/* Analyze the state to extract the cause of the interrupt and act accordingly */
 
-		/* Un carattere è stato trasmesso -> Priorità alla trasmissione */
+		/* A character has been transmitted -> Priority to transmission */
 		if (((*status_trans) & STATUSMASK) == DEV_TTRS_S_CHARTRSM)
 		{
-			/* Invio messaggio a SSI, come sender il device register, come payload il valore di status */
+			/* Send message to SSI, as sender the device register, as payload the status value */
 			interrupt_msg_array[i].service = INTERRUPT_MSG;
 			interrupt_msg_array[i].arg = *status_trans;
 			interrupt_msg_array[i].reply = NOREPLY;
 
 			if ( send((tcb_t *)status_trans, SSI_tcb, (U32)&interrupt_msg_array[i]) == MSGNOGOOD ) PANIC();
 
-			/* ACK al device */
+			/* ACK to device */
 			*command_trans = DEV_C_ACK;
 		}
-		
-		/* Un carattere è stato ricevuto */
+
+		/* A character has been received */
 		else if (((*status_rec) & STATUSMASK) == DEV_TRCV_S_CHARRECV)
 		{
-			/* Invio messaggio a SSI, come sender il device register, come payload il valore di status */
+			/* Send message to SSI, as sender the device register, as payload the status value */
 			interrupt_msg_array[i].service = INTERRUPT_MSG;
 			interrupt_msg_array[i].arg = *status_rec;
 			interrupt_msg_array[i].reply = NOREPLY;
 
 			if ( send((tcb_t *)status_rec, SSI_tcb, (U32)&interrupt_msg_array[i]) == MSGNOGOOD ) PANIC();
 
-			/* ACK al device */
+			/* ACK to device */
 			*command_rec = DEV_C_ACK;
 		}
-		
-		
+
+
 	} /* Terminal **************************************************************************/
 
-	/* Incremento i in modo circolare */
+	/* Increment i in circular mode */
 	i = (i+1)%48;
 	
 	scheduler();

@@ -18,18 +18,18 @@
 
 /**************************** MANAGER.C ********************************
 
-	Questo modulo implementa alcune funzionalità utili per la gestione 
-	dei Trap Manager.
+	This module implements some functionalities useful for managing
+	Trap Managers.
 
 ************************************************************************/
 
 
 #include <boot.e>
 
-/* Array utile al nucleo per gestire la presenza dei trap manager */
+/* Array useful for the kernel to manage the presence of trap managers */
 tcb_t *trap_managers[MAXTHREADS];
 
-/* Aggiunge un puntatore al manager tcb nel primo posto libero */
+/* Adds a pointer to the manager tcb in the first free position */
 void add_manager(tcb_t *manager){
 	int i;
 	for (i=0;i<MAXTHREADS;i++){
@@ -41,7 +41,7 @@ void add_manager(tcb_t *manager){
 	}
 }
 
-/* Rimuove dall'array (se c'è) il manager indicato */
+/* Removes from the array (if it exists) the indicated manager */
 void delete_manager(tcb_t *manager){
 	int i;
 	for (i=0;i<MAXTHREADS;i++)
@@ -51,7 +51,7 @@ void delete_manager(tcb_t *manager){
 		}
 }
 
-/* Verifica la presenza del manager nell'array nel qual caso ne restituisce il puntatore, altrimenti NULL */
+/* Checks the presence of the manager in the array, in which case returns its pointer, otherwise NULL */
 tcb_t *thereIs_manager(tcb_t *manager){
 	int i;
 	for (i=0;i<MAXTHREADS;i++)

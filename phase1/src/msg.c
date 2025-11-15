@@ -18,8 +18,8 @@
 
 /********************************* MSG.C *******************************
 
-	Questo modulo implementa le funzioni necessarie al nucleo di phase2
-	per il servizio di message passing.
+	This module implements the functions necessary for the phase2 kernel
+	for the message passing service.
 
 ************************************************************************/
 
@@ -30,16 +30,16 @@
 #include <listx.h>
 #include <tcb.e>
 
-/*Sentinella per la lista dei messaggi liberi*/
+/* Sentinel for the free message list */
 struct list_head msgfree_sentinel;
 
-/*Array di messaggi da allocare*/
+/* Array of messages to allocate */
 HIDDEN msg_t msg_array[MAXMESSAGES];
 
 
 /* Message list handling functions */
 
-/*Inizializza la lista dei messaggi liberi e usando il msg_array alloca col concatenatore m_next*/
+/* Initializes the free message list and allocates using msg_array with the m_next linker */
 void initMsg(void){
 	
 	int i;
@@ -50,13 +50,13 @@ void initMsg(void){
 }
 
 
-/*Sposta un msg nella lista di quelli liberi*/
+/* Moves a message to the free list */
 void freeMsg(msg_t *m){
 	list_add_tail(&(m->m_next),&(msgfree_sentinel));
 }
 
 
-/*Alloca e inizializza i campi di un messaggio*/
+/* Allocates and initializes the fields of a message */
 msg_t *allocMsg(void){
 	msg_t *removed_msg;
 	
@@ -70,29 +70,29 @@ msg_t *allocMsg(void){
 	return removed_msg;
 }
 
-/*Inizializza un coda di msg vuota*/
+/* Initializes an empty message queue */
 void mkEmptyMessageQ(struct list_head *emptylist){
 	INIT_LIST_HEAD(emptylist);
 }
 
 
-/*Verifica se la coda è vuota*/
+/* Checks if the queue is empty */
 int emptyMessageQ(struct list_head *head){
 	return (list_empty(head));
 }
 
-/*Inserisce in coda il msg puntato da mp nella coda a sentinella head*/
+/* Inserts the message pointed to by mp at the tail of the queue with sentinel head */
 void insertMessage(struct list_head *head, msg_t *mp){
 	list_add_tail(&(mp->m_next),head);
 }
 
-/*Inserisce in testa (push) il msg puntato da mp nella lista a sentinella head*/
+/* Inserts at the head (push) the message pointed to by mp in the list with sentinel head */
 void pushMessage(struct list_head *head, msg_t *mp){
 	list_add(&(mp->m_next),head);
 	}
 
-/*Fa pop del msg puntato da mp nella lista a sentinella head, nel caso in cui vi sia*/
-/*Se viene passato NULL come secondo parametro fa una semplice pop (remove dalla testa)*/
+/* Pops the message pointed to by mp from the list with sentinel head, if it exists */
+/* If NULL is passed as the second parameter, performs a simple pop (remove from head) */
 msg_t *popMessage(struct list_head *head, tcb_t *mp){
 	msg_t *pos;
 	
@@ -112,14 +112,14 @@ msg_t *popMessage(struct list_head *head, tcb_t *mp){
 	return NULL;
 }
 
-/* Restituisce il puntatore al primo messaggio in testa a lista a sentinella head */
+/* Returns the pointer to the first message at the head of the list with sentinel head */
 msg_t *headMessage(struct list_head *head){
 	if (list_empty(head)) return NULL;
 	return container_of(head->next, msg_t, m_next);
 }
 
-/* Utili per phase2 */
-/* Verifica se esiste in inbox un messaggio proveniente da mp altrimenti ritorna NULL */
+/* Useful for phase2 */
+/* Checks if there is a message in the inbox from mp otherwise returns NULL */
 msg_t *thereIsMessage(struct list_head *head, tcb_t *mp){
 	msg_t *pos;
 	

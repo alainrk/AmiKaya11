@@ -18,10 +18,10 @@
 
 /*************************** EXCEPTIONS.C *******************************
 
-	Questo modulo implementa le routine di gestione delle eccezioni di tipo
-	SYSCALL/BREAKPOINT, PROGRAM TRAP, TLB.
-	Principalmente gestisce il MESSAGE PASSING sui cui si basa il sistema.
-	Inoltre fornisce alcune funzioni utili anche al resto del nucleo.
+	This module implements the exception handling routines for
+	SYSCALL/BREAKPOINT, PROGRAM TRAP, TLB types.
+	It mainly handles MESSAGE PASSING on which the system is based.
+	It also provides some functions useful to the rest of the kernel.
 
 ************************************************************************/
 
@@ -40,7 +40,7 @@
 #include <manager.e>
 #include <ssi.e>
 
-/* Macro per leggibilità: riferimento a Old Area come stato del processore */
+/* Macro for readability: reference to Old Area as processor state */
 #define		sysbk_oldarea			((state_t *)SYSBK_OLDAREA)
 #define		tlbtrap_oldarea				((state_t *)TLB_OLDAREA)
 #define		pgmtrap_oldarea		((state_t *)PGMTRAP_OLDAREA)
@@ -50,8 +50,8 @@
 /**********************************************************************
 														SAVE_STATE
 
-	Funzione ausiliaria per salvare lo stato "source" nello stato "dest"
-	passati entrambi come puntatori a t_state.
+	Auxiliary function to save the "source" state into the "dest" state
+	both passed as pointers to t_state.
 
 **********************************************************************/
 
@@ -73,12 +73,12 @@ void save_state(state_t *source, state_t *dest) {
 /**********************************************************************
 														TERMINATE
 
-	Si occupa di:
-	-Uccidere root e tutti i figli ricorsivamente
-	-Rimettere i thread nella lista dei liberi
-	-Togliere i thread dalle varie liste/array in cui sono presenti
-	-Decrementare il valore di thread_count
-	-Pulire la inbox da eventuali messaggi
+	Handles:
+	-Killing root and all children recursively
+	-Returning threads to the free list
+	-Removing threads from various lists/arrays where they are present
+	-Decrementing the thread_count value
+	-Cleaning the inbox from any messages
 
 **********************************************************************/
 void terminate (tcb_t *target) {
@@ -86,43 +86,43 @@ void terminate (tcb_t *target) {
 	msg_t *msg;
 	tcb_t *child;
 
-	/* Se ha un padre lo elimino dai suoi figli */
+	/* If it has a parent, remove it from its children */
 	outChild(target);
 
-	/* Caso ricorsivo -> HA figli (su cui viene chiamata la terminate) */
+	/* Recursive case -> HAS children (on which terminate is called) */
 	while (TRUE) {
-		if ( (child = removeChild(target)) == NULL ) break; /* Passa al caso base e pulisce thread, liste, messaggi... */
+		if ( (child = removeChild(target)) == NULL ) break; /* Move to base case and clean threads, lists, messages... */
 		terminate(child);
 	}
 
-	/* Caso base -> NON ha figli */
+	/* Base case -> NO children */
 
-	/* Se è in qualche lista o è il thread corrente lo elimino */
+	/* If it's in some list or is the current thread, remove it */
 	if (((outThread(&ready_queue, target)) != NULL) || (current_thread == target)) {
 
-		/* Pulisco la inbox */
+		/* Clean the inbox */
 		while (TRUE) {
 			if ( (msg = popMessage(&(target->t_inbox), NULL)) == NULL ) break;
 			freeMsg(msg);
 		}
 
-		/* Se è un manager lo elimino dal trap_managers array */
+		/* If it's a manager, remove it from the trap_managers array */
 		delete_manager(target);
 
 		if (current_thread == target) current_thread=NULL;
 
-		/* Restituisco ai thread liberi */
+		/* Return to free threads */
 		freeTcb(target);
 		thread_count--;
 	}
 
 	else if (outThread(&wait_queue, target)) {
 
-		/* Decremento contatore processi in attesa I/O o SSI */	
+		/* Decrement counter of processes waiting for I/O or SSI */
 		if (target->waiting_for == SSI_tcb)
 			soft_block_count--;
 
-		/* Tutto come caso precedente*/
+		/* Everything as previous case */
 		while (TRUE) {
 			if ( (msg = popMessage(&(target->t_inbox), NULL)) == NULL ) break;
 			freeMsg(msg);
@@ -141,10 +141,10 @@ void terminate (tcb_t *target) {
 /**********************************************************************
 														SEND
 
-	Invia un messaggio come richiesto dal sender al destinatario
-	specificato nel registro a1 (receiver), col payload specificato
-	al registro	a2 (payload).
-	Operazione NON BLOCCANTE.
+	Sends a message as requested by the sender to the recipient
+	specified in register a1 (receiver), with the payload specified
+	in register a2 (payload).
+	NON-BLOCKING operation.
 
 **********************************************************************/
 int send (tcb_t *sender, tcb_t *target, U32 payload){
@@ -152,61 +152,61 @@ int send (tcb_t *sender, tcb_t *target, U32 payload){
 	msg_t *msg;
 	tcb_t *_sender_;
 
-	/* Protezione SSI */
+	/* SSI protection */
 	if (sender == SSI_tcb)
 		_sender_ = (tcb_t *)MAGIC_SSI;
-	else 
+	else
 		_sender_ = sender;
 
-	/* Destinatario in ready_queue o thread corrente */
+	/* Recipient in ready_queue or current thread */
 	if ( ((thereIsThread(&ready_queue, target)) != NULL ) || (current_thread == target) ) {
 		if ((msg = allocMsg()) == NULL) PANIC();
-		/* Creazione e compilazione messaggio */
+		/* Message creation and compilation */
 
 		msg->m_sender = _sender_;
 		msg->m_message = payload;
 
-		/* Priorità allo Pseudo Clock Tick -> Messaggio in testa */
+		/* Priority to Pseudo Clock Tick -> Message at head */
 		if (_sender_ == (tcb_t*)BUS_INTERVALTIMER)
 			pushMessage(&(target->t_inbox), msg);
-		/* Trattamento normale -> Messaggio in coda */
+		/* Normal treatment -> Message at tail */
 		else insertMessage(&(target->t_inbox), msg);
 
 		return (MSGGOOD);
 	}
-	
-	/* Destinatario in wait_queue */
+
+	/* Recipient in wait_queue */
 	else if ((thereIsThread(&wait_queue, target)) != NULL ) {
 
-		/* 
-				Se sta aspettando un messaggio da questo thread 
-				o da chiunque sveglio il thread dest togliendolo 
-				dalla wait_queue e lo inserisco nella ready_queue
-				passandogli il payload dove mi aveva richiesto e 
-				che avevo salvato nel TCB nel	campo "reply".
+		/*
+				If it's waiting for a message from this thread
+				or from anyone, wake up the dest thread by removing it
+				from wait_queue and insert it into ready_queue
+				passing it the payload where it requested and
+				that I had saved in the TCB in the "reply" field.
 		*/
 		if ((target->waiting_for == _sender_) || (target->waiting_for == ANYMESSAGE)) {
 			*(target->reply) = payload;
 
-			/* Risveglio il thread */
+			/* Wake up the thread */
 			insertThread(&ready_queue, outThread(&wait_queue, target));
 
-			/* Risettaggio campi per message passing */
+			/* Reset fields for message passing */
 			target->waiting_for = (tcb_t *)-1;
 			target->reply = (U32 *)-1;
 
-			/* Decremento soft block count se caso SSI e restituisco sender al destinatario */
+			/* Decrement soft block count if SSI case and return sender to recipient */
 			if (_sender_ == SSI_tcb)
 				soft_block_count--;
 
 			target->t_state.reg_v0 = (U32)_sender_;
-			
+
 			return (MSGGOOD);
 		}
 
-		/* Destinatario momentaneamente in attesa di un altro mittente */
+		/* Recipient temporarily waiting for another sender */
 		else {
-			/* Tutto come sopra */
+			/* Everything as above */
 			if ((msg = allocMsg()) == NULL) PANIC();
 
 			msg->m_sender = _sender_;
@@ -222,7 +222,7 @@ int send (tcb_t *sender, tcb_t *target, U32 payload){
 
 	}
 
-	/* Nessuno dei casi precedenti --> potrebbe essere stato terminato il thread */
+	/* None of the previous cases --> the thread might have been terminated */
 	return (MSGNOGOOD);
 	
 }
@@ -233,76 +233,75 @@ int send (tcb_t *sender, tcb_t *target, U32 payload){
 /**********************************************************************
 														RECV
 
-	Mette in wait per un messaggio (settando prima gli opportuni campi 
-	ausiliari nella struttura del tcb richiedente) se non vi è il 
-	messaggio cercato nella inbox (o un qualsiasi messaggio per 
-	ANYMESSAGE). Caso BLOCCANTE.
-	Altrimenti viene creata l'astrazione del messaggio ricevuto 
-	restituendo il payload inviato al thread all'indirizzo indicato
-	nel registro a2 (reply) ---> CASO NON BLOCCANTE.
+	Puts in wait for a message (first setting the appropriate auxiliary
+	fields in the requesting tcb structure) if the searched message is
+	not in the inbox (or any message for ANYMESSAGE). BLOCKING case.
+	Otherwise the abstraction of the received message is created
+	returning the payload sent to the thread at the address indicated
+	in register a2 (reply) ---> NON-BLOCKING CASE.
 
 **********************************************************************/
 tcb_t *recv (tcb_t *receiver, tcb_t *sender, U32 *reply){
 
 	msg_t *msg;
 
-	/* Caso ANYMESSAGE, attesa di un qualsiasi messaggio */
+	/* ANYMESSAGE case, waiting for any message */
 	if (sender == ANYMESSAGE) {
-		/* Cerco di estrarre il primo messaggio, se c'è */
+		/* Try to extract the first message, if there is one */
 		msg = popMessage(&(receiver->t_inbox), NULL);
-		
-		/* Inbox vuota -> wait */
+
+		/* Inbox empty -> wait */
 		if (msg == NULL) {
-			/* Per chi sono fermo */
+			/* Who I'm waiting for */
 			receiver->waiting_for = ANYMESSAGE;
-			/* Dove aspetto la risposta */
+			/* Where I expect the response */
 			receiver->reply = reply;
-			/* Metto in wait_queue */
+			/* Put in wait_queue */
 			insertThread(&wait_queue, receiver);
 			current_thread = NULL;
 
 			return NULL;
 		}
 
-		/* Inbox NON vuota -> preleva messaggio */
+		/* Inbox NOT empty -> retrieve message */
 		else {
 			*reply = msg->m_message;
 			sender = msg->m_sender;
-			/* Restituisco il messaggio alla lista dei liberi */
+			/* Return the message to the free list */
 			freeMsg(msg);
-			/* Restituisco il mittente del messaggio */
+			/* Return the message sender */
 			return(sender);
 		}
 	}
 
-	/* Caso THREAD SPECIFICATO */
+	/* SPECIFIED THREAD case */
 	else if (sender != ANYMESSAGE) {
-		/* Cerco di estrarre il messaggio inviato dal thread specificato */
+		/* Try to extract the message sent by the specified thread */
 		msg = popMessage(&(receiver->t_inbox), sender);
-		
-		/* Messaggio non trovato -> wait */
+
+		/* Message not found -> wait */
 		if (msg == NULL) {
-			/* Per chi sono fermo */
+			/* Who I'm waiting for */
 			receiver->waiting_for = sender;
-			/* Dove aspetto la risposta */
+			/* Where I expect the response */
 			receiver->reply = reply;
-			/* Metto in wait_queue */
+			/* Put in wait_queue */
 			insertThread(&wait_queue, receiver);
 
 			current_thread = NULL;
 			return NULL;
 		}
 
-		/* Messaggio trovato -> preleva messaggio */
+		/* Message found -> retrieve message */
 		else {
 			*reply = msg->m_message;
 
-			/* Se prelevo risposta ad un servizio decremento soft_block_count */
+			/* If I retrieve response to a service, decrement soft_block_count */
 			if (sender == (tcb_t *)MAGIC_SSI) soft_block_count--;
 
-			/* Restituisco il messaggio alla lista dei liberi */
+			/* Return the message to the free list */
 			freeMsg(msg);
-			/* Restituisco il mittente del messaggio */
+			/* Return the message sender */
 			return(sender);
 		}
 	}
@@ -314,19 +313,18 @@ tcb_t *recv (tcb_t *receiver, tcb_t *sender, U32 *reply){
 /**********************************************************************
 												 SYSBP_HANDLER
 
-	Caricato all'arrivo di una eccezione di tipo SYSCALL/BREAKPOINT.
-	Fornisce principalmente il servizio di message passing.
-	In tutti i casi in cui è sollevata una eccezione diversa da SYSCALL
-	di tipo 1 o 2 in Kernel Mode, questa routine, come le 
-	altre due di questo modulo affidano il controllo del thread corrente
-	ad un Trap Manager, se specificato, altrimenti viene terminato tutto
-	il sottoalbero corrispondente.
+	Loaded upon arrival of a SYSCALL/BREAKPOINT type exception.
+	Mainly provides the message passing service.
+	In all cases where an exception other than SYSCALL type 1 or 2
+	is raised in Kernel Mode, this routine, like the other two in this
+	module, hands over control of the current thread to a Trap Manager,
+	if specified, otherwise the entire corresponding subtree is terminated.
 
 **********************************************************************/
 void sysbp_handler(){
 
 	int exc_cause;
-	int KUmode;	/* 0 se Kernel / 1 se User */
+	int KUmode;	/* 0 if Kernel / 1 if User */
 
 	tcb_t *trapped;
 	tcb_t *manager;
@@ -337,25 +335,25 @@ void sysbp_handler(){
 	U32 payload;
 	U32 *reply;
 
-	/* Aggiornamento tempo thread */
+	/* Thread time update */
 	current_thread->cpu_slice += (GET_TODLOW - current_thread_tod);
 	current_thread->cpu_time += (GET_TODLOW - current_thread_tod);
 
 	/*
-		Salvo lo stato del processore del thread che ha sollevato l'eccezione, nel campo t_state del suo tcb.
-		Lo stato è salvato nella old area dell'attuale eccezione.
-		Modifico opportunamente il PC per non avere un ciclo nel ritorno dall'eccezione.
+		Save the processor state of the thread that raised the exception, in the t_state field of its tcb.
+		The state is saved in the old area of the current exception.
+		Modify the PC appropriately to avoid a loop when returning from the exception.
 	*/
 	save_state(sysbk_oldarea, &(current_thread->t_state));
 	current_thread->t_state.pc_epc += WORD_SIZE;
 
-	/* Recupero il tipo di eccezione avvenuta */
+	/* Retrieve the type of exception that occurred */
 	exc_cause = CAUSE_EXCCODE_GET(sysbk_oldarea->cause);
 
-	/* Controllo se Kernel o User Mode */
+	/* Check if Kernel or User Mode */
 	KUmode = (sysbk_oldarea->status & STATUS_KUp) >> 3;
-	
-	/* Se l'eccezione è una SYSCALL 1 o 2 ed eseguita in kernel mode */
+
+	/* If the exception is a SYSCALL 1 or 2 and executed in kernel mode */
 	if (KUmode == 0) {
 
 		if (exc_cause == EXC_SYSCALL) {
@@ -365,21 +363,21 @@ void sysbp_handler(){
 
 				sender = current_thread;
 				payload = sysbk_oldarea->reg_a2;
-				/* Protezione SSI e incremento thread in attesa di servizio */
+				/* SSI protection and increment threads waiting for service */
 				if (sysbk_oldarea->reg_a1 == MAGIC_SSI) {
 					receiver = SSI_tcb;
 					soft_block_count++;
 				}
-				else 
+				else
 					receiver = ((tcb_t *)(sysbk_oldarea->reg_a1));
 
-				/* CASO TRAP MANAGER --> Intercettare messaggio TRAPTERMINATE / TRAPCONTINUE */
+				/* TRAP MANAGER CASE --> Intercept TRAPTERMINATE / TRAPCONTINUE message */
 				if ((thereIs_manager(sender)) && (receiver->waiting_for == sender)) {
 
 					/*** TRAPTERMINATE ***/
 					if (payload == TRAPTERMINATE) {
 						trapped = receiver;
-						terminate(trapped);	/* Termino thread in wait_queue in attesa della decisione del Trap Manager */
+						terminate(trapped);	/* Terminate thread in wait_queue waiting for Trap Manager decision */
 
 						scheduler();
 					}
@@ -387,13 +385,13 @@ void sysbp_handler(){
 					/*** TRAPCONTINUE ***/
 					if (payload == TRAPCONTINUE) {
 						trapped = receiver;
-						insertThread(&ready_queue, outThread(&wait_queue, trapped)); /* Altrimenti lo risveglio */
+						insertThread(&ready_queue, outThread(&wait_queue, trapped)); /* Otherwise wake it up */
 
 						scheduler();
 					}
 				}
 
-				/* Caso normale di MsgSend (vedi send) */
+				/* Normal MsgSend case (see send) */
 				sender->t_state.reg_v0 = send (sender, receiver, payload);
 
 				scheduler();
@@ -405,14 +403,14 @@ void sysbp_handler(){
 
 				receiver = current_thread;
 				reply = (U32 *)sysbk_oldarea->reg_a2;
-				/* Protezione SSI (non decremento qui soft block count ma al momento di ricevimento servizio) */
+				/* SSI protection (don't decrement soft block count here but when receiving service) */
 				if (sysbk_oldarea->reg_a1 == MAGIC_SSI)
 					sender = SSI_tcb;
-				else 
+				else
 					sender = ((tcb_t *)(sysbk_oldarea->reg_a1));
 
 
-				/* MsgRecv (vedi recv) e restituisco sender direttamente (nel caso NON BLOCCANTE e non con SSIRequest) */
+				/* MsgRecv (see recv) and return sender directly (in NON-BLOCKING case and not with SSIRequest) */
 				current_thread->t_state.reg_v0 = (U32)recv(current_thread, ((tcb_t *)sysbk_oldarea->reg_a1), ((U32 *)sysbk_oldarea->reg_a2));
 				
 				scheduler();
@@ -422,12 +420,12 @@ void sysbp_handler(){
 
 	}
 
-	
-	/* TUTTI gli altri casi*/
+
+	/* ALL other cases */
 
 	manager = current_thread->sysbp_manager_thread;
 
-	/* Se il thread NON ha specificato un Trap Management thread per questa eccezione viene terminato */
+	/* If the thread has NOT specified a Trap Management thread for this exception, it is terminated */
 	if (manager == NULL) {
 		terminate(current_thread);
 		current_thread = NULL;
@@ -435,15 +433,15 @@ void sysbp_handler(){
 		scheduler();
 	}
 
-	/* Se il thread HA invece specificato il gestore viene freezato */
+	/* If the thread HAS instead specified the handler, it is frozen */
 	else {
-		/* Invio messaggio al suo Trap manager con registro cause come payload */
+		/* Send message to its Trap manager with cause register as payload */
 		send(current_thread, manager, sysbk_oldarea->cause);
 
-		/* Setto in TCB chi sto aspettando */
+		/* Set in TCB who I'm waiting for */
 		current_thread->waiting_for = manager;
 
-		/* Freeze del thread in attesa della decisione del manager */
+		/* Freeze the thread waiting for manager decision */
 		insertThread(&wait_queue, current_thread);
 
 		current_thread = NULL;
@@ -459,17 +457,16 @@ void sysbp_handler(){
 /**********************************************************************
 												 PGMTRAP_HANDLER
 
-	Caricato all'arrivo di una eccezione di tipo PGMTRAP.
-	Affida il controllo del thread corrente ad un Trap Manager, se 
-	specificato, altrimenti viene terminato tutto	il sottoalbero 
-	corrispondente.
+	Loaded upon arrival of a PGMTRAP type exception.
+	Hands over control of the current thread to a Trap Manager, if
+	specified, otherwise the entire corresponding subtree is terminated.
 
 **********************************************************************/
 void pgmtrap_handler(){
 
 	tcb_t *manager;
 
-	/* TUTTE le operazioni sono equivalenti a quelle per SYSBP */
+	/* ALL operations are equivalent to those for SYSBP */
 	current_thread->cpu_slice += (GET_TODLOW - current_thread_tod);
 	current_thread->cpu_time += (GET_TODLOW - current_thread_tod);
 
@@ -505,17 +502,16 @@ void pgmtrap_handler(){
 /**********************************************************************
 												 TLB_HANDLER
 
-	Caricato all'arrivo di una eccezione di tipo TLBTRAP.
-	Affida il controllo del thread corrente ad un Trap Manager, se 
-	specificato, altrimenti viene terminato tutto	il sottoalbero 
-	corrispondente.
+	Loaded upon arrival of a TLBTRAP type exception.
+	Hands over control of the current thread to a Trap Manager, if
+	specified, otherwise the entire corresponding subtree is terminated.
 
 **********************************************************************/
 void tlb_handler(){
 
 	tcb_t *manager;
 
-	/* TUTTE le operazioni sono equivalenti a quelle per SYSBP */
+	/* ALL operations are equivalent to those for SYSBP */
 	current_thread->cpu_slice += (GET_TODLOW - current_thread_tod);
 	current_thread->cpu_time += (GET_TODLOW - current_thread_tod);
 

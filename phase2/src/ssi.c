@@ -18,10 +18,10 @@
 
 /****************************** SSI.C ***********************************
 
-	Questo modulo implementa il Sistem Service Interface, che fornisce una 
-	vera e propria interfaccia verso l'esterno del nucleo, e che nel 
-	contempo dialoga con esso per la gestione di Pseudo Clock Tick e 
-	interrupt.
+	This module implements the System Service Interface, which provides a
+	real interface to the outside of the kernel, and at the same time
+	communicates with it for the management of Pseudo Clock Tick and
+	interrupts.
 
 ************************************************************************/
 
@@ -42,8 +42,8 @@
 /**********************************************************************
 												 REST_INDEX
 
-	Assegna all'indirizzo di un Device Register un indice utilizzato
-	negli array usati dall'SSI per la gestione di interrupt/WaitforIO.
+	Assigns an index to a Device Register address used
+	in the arrays used by SSI for interrupt/WaitforIO management.
 
 **********************************************************************/
 HIDDEN int rest_index (memaddr dev) {
@@ -99,41 +99,40 @@ HIDDEN int rest_index (memaddr dev) {
 	else return (-1);
 }
 
-/* 
-	Array dove si memorizzerà un campo stato del corrispondente 
-	Device Register qualora non sia ancora arrivato un WAITFORIO
-	corrispondente.
+/*
+	Array where a status field of the corresponding Device Register
+	will be stored if a corresponding WAITFORIO has not yet arrived.
 */
 HIDDEN int devStatus_array[48];
 
-/* 
-	Array dove si memorizzerà un puntatore a TCB per il thread  che ha 
-	già fatto WAITFORIO un Device dal quale Device Register non è ancora
-	arrivato un interrupt.
+/*
+	Array where a pointer to TCB will be stored for the thread that has
+	already done WAITFORIO on a Device from which Device Register has not
+	yet received an interrupt.
 */
 HIDDEN tcb_t *devTcb_array[48];
 
-/* 
-	Array per la gestione dello Pseudo Clock.
-	Vi verranno memorizzati i puntatori a TCB di quei thread che hanno	
-	richiesto il servizio WAITFORCLOCK.
+/*
+	Array for Pseudo Clock management.
+	It will store pointers to TCB of those threads that have
+	requested the WAITFORCLOCK service.
 */
 HIDDEN tcb_t *clockTcb_array[MAXTHREADS];
 
 
 /*
-	Struttura utile per inviare messaggio di richiesta all'SSI
-	in quanto mappa nell'unico campo "U32 payload" di MsgSend
-	i 3 campi service, payload, reply di SSIRequest.
+	Structure useful for sending request message to SSI
+	as it maps in the single "U32 payload" field of MsgSend
+	the 3 fields service, payload, reply of SSIRequest.
 
-	L'SSI dovrà quindi trattare un messaggio nel cui interno
-	ci sarà una struttura fatta in questo modo, e usare le 
-	informazioni in essa contenuta per fornire il servizio.
+	The SSI will therefore have to handle a message inside which
+	there will be a structure made this way, and use the
+	information contained in it to provide the service.
 */
 struct SSI_request_msg {
-	U32 service;		/* Servizio richiesto */
-	U32 arg;				/* Parametro eventuale */
-	U32 *reply; 		/* Dove andrà messa la risposta */
+	U32 service;		/* Requested service */
+	U32 arg;				/* Optional parameter */
+	U32 *reply; 		/* Where the response will be placed */
 };
 
 
@@ -141,27 +140,27 @@ struct SSI_request_msg {
 /**********************************************************************
 										      	SSIREQUEST
 
-	SSIRequest implementata come combinazione di:
-	MsgSend ---> Invia tipo di richiesta a SSI come messaggio.
-	MsgRecv ---> Aspetta (bloccante) la risposta da SSI.
+	SSIRequest implemented as a combination of:
+	MsgSend ---> Sends request type to SSI as message.
+	MsgRecv ---> Waits (blocking) for response from SSI.
 
-	Fondamentale l'utilizzo delle strutture SSI_request_msg.
+	The use of SSI_request_msg structures is fundamental.
 
 **********************************************************************/
 void SSIRequest (U32 service, U32 payload, U32 *reply) {
 
-	/* Creo struttura per invio del messaggio */
+	/* Create structure for message sending */
 	struct SSI_request_msg request;
 
-	/* Mappatura dei campi */
+	/* Field mapping */
 	request.service = service;
-	request.arg = payload; /* Potrebbe essere 0 se non ci sono */
+	request.arg = payload; /* Could be 0 if there are none */
 	request.reply = reply;
 
-	/* Invio messaggio con indirizzo della struttura appena creata */
+	/* Send message with address of the just created structure */
 	MsgSend(SEND,MAGIC_SSI,&request);
 
-	/* Mi metto in attesa come un normale messaggio */
+	/* Wait as a normal message */
 	MsgRecv(RECV,MAGIC_SSI,reply);
 
 }
@@ -171,19 +170,19 @@ void SSIRequest (U32 service, U32 payload, U32 *reply) {
 /**********************************************************************
 										      	SSI_THREAD
 
-	Il Sistem Service Interface è un thread che lavora in modo simile 
-	ad un server RPC, aspettando l'arrivo di una richiesta e agendo di 
-	conseguenza, mettendo in moto la giusta procedura per soddisfare il
-	thread richiedente.
-	Crea quindi l'astrazione, mediante SSIRequest dell'esistenza di 
-	System Call, nonostante la sottostruttura di message passing.
+	The System Service Interface is a thread that works similar to
+	an RPC server, waiting for a request to arrive and acting
+	accordingly, setting in motion the right procedure to satisfy the
+	requesting thread.
+	It thus creates the abstraction, through SSIRequest, of the existence of
+	System Calls, despite the underlying message passing structure.
 
-	L'SSI inoltre gestisce la comunicazione tra Device e thread, 
-	memorizzando opportunamente con array e strutture le informazioni
-	utili a seconda delle situazioni.
+	The SSI also manages communication between Device and threads,
+	appropriately storing with arrays and structures the useful
+	information depending on the situations.
 
-	Infine gestisce, assieme alle routine per le eccezioni e lo scheduler,
-	il device virtuale dello Pseudo Clock Tick.
+	Finally, it manages, together with the exception and scheduler routines,
+	the virtual device of the Pseudo Clock Tick.
 
 **********************************************************************/
 void SSI_thread(){
@@ -196,31 +195,31 @@ void SSI_thread(){
 	int i;
 	int device_num;
 
-	/* Inizializzo gli array per Waitforio e Interrupt */
+	/* Initialize arrays for Waitforio and Interrupt */
 	for (i=0;i<48;i++) {
 		devStatus_array[i] = -1;
 		devTcb_array[i] = NULL;
 	}
 
-	/* Inizializzo array per Waitforclock */
+	/* Initialize array for Waitforclock */
 	for (i=0;i<MAXTHREADS;i++) {
 		clockTcb_array[i] = NULL;
 	}
-	
-	/* Ciclo infinito */
+
+	/* Infinite loop */
 	while (TRUE) {
 
-		/* Passo fondamentale: mi metto in attesa di richieste di servizi */
+		/* Fundamental step: wait for service requests */
 		req_thread = MsgRecv(RECV,ANYMESSAGE,&req_struct);
 
-		/* Verifico se la richiesta è Interrupt/Waitforclock */
+		/* Check if the request is Interrupt/Waitforclock */
 		switch (req_struct->service) {
-		
+
 				case (PSEUDOCLOCK_MSG):
-					/* Sveglio tutti i thread in attesa dello Pseudo Clock Tick e pulisco l'array */
+					/* Wake up all threads waiting for Pseudo Clock Tick and clean the array */
 					for (i=0;i<(MAXTHREADS-1);i++) {
 						if (clockTcb_array[i] != NULL) {
-							/* Questo basterà a sbloccare il thread */
+							/* This will be enough to unblock the thread */
 							MsgSend(SEND, clockTcb_array[i], 42);
 							clockTcb_array[i] = 0;
 						}
@@ -230,39 +229,39 @@ void SSI_thread(){
 					break;
 
 				case (INTERRUPT_MSG):
-					/* 2 casi - Sender è in questo caso l'indirizzo del Device Register */
+					/* 2 cases - Sender is in this case the Device Register address */
 					device_num = rest_index((memaddr)req_thread);
 
-					/* WAITFORIO corrispondente non ancora arrivato */
+					/* Corresponding WAITFORIO not yet arrived */
 					if ((wfio_thread = devTcb_array[device_num]) == NULL)
-						/* Memorizzo alla posizione corrispondente dell'array lo status che dovrà essere prelevato */
+						/* Store at the corresponding position of the array the status to be retrieved */
 						devStatus_array[device_num] = req_struct->arg;
 
-					/* WAITFORIO corrispondente già arrivato */
+					/* Corresponding WAITFORIO already arrived */
 					else {
 						MsgSend(SEND, wfio_thread, ((req_struct->arg) & STATUSMASK));
 						devTcb_array[device_num] = NULL;
 					}
-	
+
 					break;
-				
-				/* Non è un interrupt */
+
+				/* It's not an interrupt */
 				default:
 					break;
 		}
 
 
-		/* Verifico innanzitutto che il thread richiedente esista ancora */
-		if (((thereIsThread(&ready_queue, req_thread)) != NULL ) || 
+		/* First verify that the requesting thread still exists */
+		if (((thereIsThread(&ready_queue, req_thread)) != NULL ) ||
 				((thereIsThread(&wait_queue, req_thread)) != NULL )) {
 
-			/* Verifico che tipo di richiesta è arrivata */
+			/* Check what type of request arrived */
 			switch (req_struct->service) {
 
 				case (WAITFORCLOCK):
-						/* 
-							Tengo memorizzati i tcb fermi ad aspettare lo Pseudo Clock Tick 
-							che sono già in wait_queue per effetto della MsgRecv bloccante. 
+						/*
+							Keep stored the tcbs stopped waiting for Pseudo Clock Tick
+							that are already in wait_queue due to the blocking MsgRecv.
 						*/
 						for (i=0;i<(MAXTHREADS-1);i++) {
 							if (clockTcb_array[i] == NULL) {
@@ -275,27 +274,27 @@ void SSI_thread(){
 
 
 				case (CREATEBROTHER):
-						/* 
-							Crea un fratello del thread richiedente
-							aggiungendolo all'albero dei processi.
-							Lo stato del processo da creare è passato
-							per puntatore come payload.
+						/*
+							Creates a brother of the requesting thread
+							adding it to the process tree.
+							The state of the process to create is passed
+							by pointer as payload.
 					 */
 						if ((new_thread = allocTcb()) == NULL ) {
 							MsgSend(SEND, req_thread, CREATENOGOOD);
 						}
-						/* Se non ha un padre basta inserisco il thread tra i fratelli */
+						/* If it has no parent, just insert the thread among siblings */
 						if ((parent = req_thread->t_parent) == NULL) {
 							insertSibling(req_thread, new_thread);
 						}
 						else insertChild(parent, new_thread);
 						thread_count++;
-						/* Setto lo stato e carico in ready queue*/
+						/* Set the state and load in ready queue */
 						save_state((state_t *)req_struct->arg, &(new_thread->t_state));
 
 						insertThread(&ready_queue, new_thread);
 
-						/* Restituisco il puntatore al nuovo thread */
+						/* Return the pointer to the new thread */
 						MsgSend(SEND, req_thread, new_thread);
 
 						break;
@@ -303,54 +302,54 @@ void SSI_thread(){
 
 				case (CREATESON):
 
-						/* 
-							Crea un figlio del thread richiedente
-							aggiungendolo all'albero dei processi.
-							Lo stato del processo da creare è passato
-							per puntatore come payload.
+						/*
+							Creates a child of the requesting thread
+							adding it to the process tree.
+							The state of the process to create is passed
+							by pointer as payload.
 					 */
 						if ((new_thread = allocTcb()) == NULL ) {
 							MsgSend(SEND, req_thread, CREATENOGOOD);
 						}
 						insertChild(req_thread, new_thread);
 						thread_count++;
-						/* Setto lo stato */
+						/* Set the state */
 						save_state((state_t *)req_struct->arg, &(new_thread->t_state));
 
-						/* Eredita Trap Manager se definiti, altrimenti restano NULL */
+						/* Inherits Trap Manager if defined, otherwise remain NULL */
 						new_thread->sysbp_manager_thread = req_thread->sysbp_manager_thread;
 						new_thread->pgmtrap_manager_thread = req_thread->pgmtrap_manager_thread;
 						new_thread->tlbtrap_manager_thread = req_thread->tlbtrap_manager_thread;
 
-						/* Carico in ready queue */
+						/* Load in ready queue */
 						insertThread(&ready_queue, new_thread);
 
-						/* Restituisco il puntatore al nuovo thread */
+						/* Return the pointer to the new thread */
 						MsgSend(SEND, req_thread, new_thread);
 
 						break;
 
-			
+
 				case (TERMINATE):
-						/* Termina il thread assieme a tutto il sottoalbero (vedi terminate) */
+						/* Terminate the thread together with the entire subtree (see terminate) */
 						terminate(req_thread);
 						break;
 
 
 				case (SPECPRGMGR):
-						/* 
-							Se è già stato specificato un manager per questa eccezione o non 
-							esiste quello indicato, il thread e il sottoalbero viene terminato. 
+						/*
+							If a manager has already been specified for this exception or the
+							indicated one doesn't exist, the thread and subtree are terminated.
 						*/
 						if ( (req_thread->pgmtrap_manager_thread != NULL) ||
 							 	((!(thereIsThread(&ready_queue, ((tcb_t *)req_struct->arg)))) &&
 								(!(thereIsThread(&wait_queue, ((tcb_t *)req_struct->arg))))) )
 								terminate(req_thread);
-						/* Altrimenti viene settato nella struttura del thread il manager */
+						/* Otherwise the manager is set in the thread structure */
 						else {
-							/* Aggiungo il manager al trap_managers array */
+							/* Add the manager to the trap_managers array */
 							add_manager((tcb_t *)req_struct->arg);
-							/* Setto il campo del richiedente specificando il manager */
+							/* Set the requester's field specifying the manager */
 							req_thread->pgmtrap_manager_thread = (tcb_t *)req_struct->arg;
 
 							MsgSend(SEND, req_thread, 0);
@@ -360,19 +359,19 @@ void SSI_thread(){
 
 
 				case (SPECTLBMGR):
-						/* 
-							Se è già stato specificato un manager per questa eccezione o non 
-							esiste quello indicato il thread e il sottoalbero viene terminato. 
+						/*
+							If a manager has already been specified for this exception or the
+							indicated one doesn't exist, the thread and subtree are terminated.
 						*/
 						if ( (req_thread->tlbtrap_manager_thread != NULL) ||
 							 	((!(thereIsThread(&ready_queue, ((tcb_t *)req_struct->arg)))) &&
 								(!(thereIsThread(&wait_queue, ((tcb_t *)req_struct->arg))))) )
 								terminate(req_thread);
-						/* Altrimenti viene settato nella struttura del thread il manager */
+						/* Otherwise the manager is set in the thread structure */
 						else {
-							/* Aggiungo il manager al trap_managers array */
+							/* Add the manager to the trap_managers array */
 							add_manager((tcb_t *)req_struct->arg);
-							/* Setto il campo del richiedente specificando il manager */
+							/* Set the requester's field specifying the manager */
 							req_thread->tlbtrap_manager_thread = (tcb_t *)req_struct->arg;
 
 							MsgSend(SEND, req_thread, 0);
@@ -382,19 +381,19 @@ void SSI_thread(){
 
 
 				case (SPECSYSMGR):
-						/* 
-							Se è già stato specificato un manager per questa eccezione o non 
-							esiste quello indicato il thread e il sottoalbero viene terminato. 
+						/*
+							If a manager has already been specified for this exception or the
+							indicated one doesn't exist, the thread and subtree are terminated.
 						*/
 						if ( (req_thread->sysbp_manager_thread != NULL) ||
 							 	((!(thereIsThread(&ready_queue, ((tcb_t *)req_struct->arg)))) &&
 								(!(thereIsThread(&wait_queue, ((tcb_t *)req_struct->arg))))) )
 								terminate(req_thread);
-						/* Altrimenti viene settato nella struttura del thread il manager */
+						/* Otherwise the manager is set in the thread structure */
 						else {
-							/* Aggiungo il manager al trap_managers array */
+							/* Add the manager to the trap_managers array */
 							add_manager((tcb_t *)req_struct->arg);
-							/* Setto il campo del richiedente specificando il manager */
+							/* Set the requester's field specifying the manager */
 							req_thread->sysbp_manager_thread = (tcb_t *)req_struct->arg;
 
 							MsgSend(SEND, req_thread, 0);
@@ -404,22 +403,22 @@ void SSI_thread(){
 
 
 				case (GETCPUTIME):
-							/* Restituisce al thread il tempo totale passato nella CPU */
+							/* Returns to the thread the total time spent in the CPU */
 							MsgSend(SEND, req_thread, req_thread->cpu_time);
 						break;
 
 
 				case (WAITFORIO):
-						/* 2 casi */
+						/* 2 cases */
 						if ((device_num = rest_index(req_struct->arg)) == -1) terminate(req_thread);
 
-						/* Interrupt da device corrispondente non ancora arrivato */
+						/* Interrupt from corresponding device not yet arrived */
 						else {
 							if (devStatus_array[device_num] == -1)
-								/* Memorizzo alla posizione corrispondente dell'array il *tcb che dovrà essere sbloccato */
+								/* Store at the corresponding position of the array the *tcb to be unblocked */
 								devTcb_array[device_num] = req_thread;
 
-							/* Interrupt da device corrispondente già arrivato */
+							/* Interrupt from corresponding device already arrived */
 							else {
 								MsgSend(SEND, req_thread, devStatus_array[device_num]);
 								devStatus_array[device_num] = -1;
@@ -429,7 +428,7 @@ void SSI_thread(){
 
 
 				default:
-					PANIC(); /* Errore in SSIRequest */
+					PANIC(); /* Error in SSIRequest */
 
 			}
 
